@@ -45,7 +45,7 @@ DEFAULT_PARAMS = {
 
 class Trader:
     def __init__(self, params: Optional[Dict] = None):
-        self.params = params or DEFAULT_PARAMS
+        self.params = DEFAULT_PARAMS if params is None else params
 
     # ---------------------------
     # Generic utilities
@@ -126,7 +126,7 @@ class Trader:
         # Tiny mean-reversion predictor on wall-mid returns.
         if isinstance(last_wall, (int, float)) and abs(last_wall) > MIN_LAST_WALL_ABS:
             ret = (wall_mid - last_wall) / last_wall
-            ret = max(-MAX_RETURN_ABS, min(MAX_RETURN_ABS, ret))
+            ret = min(MAX_RETURN_ABS, max(-MAX_RETURN_ABS, ret))
             reversion_adjustment = p["mean_reversion_coefficient"] * ret
             fair = ema * (1.0 + reversion_adjustment)
         else:
@@ -288,6 +288,8 @@ class Trader:
         if bid_px >= ask_px:
             bid_px = bid_cap - 1
             ask_px = ask_floor + 1
+            if bid_px >= ask_px:
+                ask_px = bid_px + 1
 
         buy_room = limit - cur_pos
         sell_room = limit + cur_pos
@@ -297,8 +299,8 @@ class Trader:
         inv_pressure = min(1.0, abs(cur_pos) / limit_f)
         size_scale = max(MIN_SIZE_SCALE, 1.0 - MAX_SIZE_REDUCTION * inv_pressure)
 
-        buy_qty = int(max(0, math.floor(buy_room * size_scale)))
-        sell_qty = int(max(0, math.floor(sell_room * size_scale)))
+        buy_qty = max(0, int(buy_room * size_scale))
+        sell_qty = max(0, int(sell_room * size_scale))
 
         if buy_qty > 0:
             orders.append(Order(product, bid_px, buy_qty))
