@@ -12,6 +12,12 @@ LIMITS = {
     TOMATOES: 80,
 }
 
+ADVERSE_EDGE_BUFFER = 0.8
+MIN_SIZE_SCALE = 0.35
+MAX_SIZE_REDUCTION = 0.65
+MIN_LAST_WALL_ABS = 1e-6
+MAX_RETURN_ABS = 0.02
+
 DEFAULT_PARAMS = {
     EMERALDS: {
         "fair": 10000.0,
@@ -118,8 +124,9 @@ class Trader:
         ema = p["ema_alpha"] * wall_mid + (1.0 - p["ema_alpha"]) * ema
 
         # Tiny mean-reversion predictor on wall-mid returns.
-        if isinstance(last_wall, (int, float)) and last_wall != 0:
+        if isinstance(last_wall, (int, float)) and abs(last_wall) > MIN_LAST_WALL_ABS:
             ret = (wall_mid - last_wall) / last_wall
+            ret = max(-MAX_RETURN_ABS, min(MAX_RETURN_ABS, ret))
             pred = p["reversion_beta"] * ret
             fair = ema * (1.0 + pred)
         else:
@@ -159,7 +166,7 @@ class Trader:
                 break
 
             # Adverse-flow guard: very large displayed volume near fair can be toxic.
-            if av > adverse_volume and edge < (take_width + 0.8):
+            if av > adverse_volume and edge < (take_width + ADVERSE_EDGE_BUFFER):
                 continue
 
             qty = min(av, buy_room)
@@ -178,7 +185,7 @@ class Trader:
             if edge < take_width:
                 break
 
-            if bv > adverse_volume and edge < (take_width + 0.8):
+            if bv > adverse_volume and edge < (take_width + ADVERSE_EDGE_BUFFER):
                 continue
 
             qty = min(bv, sell_room)
@@ -287,7 +294,7 @@ class Trader:
 
         # Size modulation: reduce passive size as inventory stretches.
         inv_pressure = min(1.0, abs(cur_pos) / float(limit))
-        size_scale = max(0.35, 1.0 - 0.65 * inv_pressure)
+        size_scale = max(MIN_SIZE_SCALE, 1.0 - MAX_SIZE_REDUCTION * inv_pressure)
 
         buy_qty = int(max(0, math.floor(buy_room * size_scale)))
         sell_qty = int(max(0, math.floor(sell_room * size_scale)))
