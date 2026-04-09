@@ -38,7 +38,7 @@ DEFAULT_PARAMS = {
         "soft_pos": 40,
         "adverse_volume": 30,
         "ema_alpha": 0.40,
-        "reversion_beta": -0.12,
+        "mean_reversion_coefficient": -0.12,
     },
 }
 
@@ -127,8 +127,8 @@ class Trader:
         if isinstance(last_wall, (int, float)) and abs(last_wall) > MIN_LAST_WALL_ABS:
             ret = (wall_mid - last_wall) / last_wall
             ret = max(-MAX_RETURN_ABS, min(MAX_RETURN_ABS, ret))
-            pred = p["reversion_beta"] * ret
-            fair = ema * (1.0 + pred)
+            reversion_adjustment = p["mean_reversion_coefficient"] * ret
+            fair = ema * (1.0 + reversion_adjustment)
         else:
             fair = ema
 
@@ -293,7 +293,8 @@ class Trader:
         sell_room = limit + cur_pos
 
         # Size modulation: reduce passive size as inventory stretches.
-        inv_pressure = min(1.0, abs(cur_pos) / float(limit))
+        limit_f = float(limit)
+        inv_pressure = min(1.0, abs(cur_pos) / limit_f)
         size_scale = max(MIN_SIZE_SCALE, 1.0 - MAX_SIZE_REDUCTION * inv_pressure)
 
         buy_qty = int(max(0, math.floor(buy_room * size_scale)))
